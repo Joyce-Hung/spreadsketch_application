@@ -1,0 +1,74 @@
+
+#< method1 - src > compile p4 program into 3 diff .json files
+p4c --target bmv2 --arch v1model --std p4-16 -D SWITCH_ID_VAL=1 -o spreadsketch_s1.json spreadsketch.p4
+p4c --target bmv2 --arch v1model --std p4-16 -D SWITCH_ID_VAL=2 -o spreadsketch_s2.json spreadsketch.p4
+p4c --target bmv2 --arch v1model --std p4-16 -D SWITCH_ID_VAL=3 -o spreadsketch_s3.json spreadsketch.p4
+
+
+
+#< method2 - src > compile p4 program
+
+$ p4c --target bmv2 --arch v1model --std p4-16 spreadsketch.p4
+
+# create network
+$ sudo ./topo_only.py
+
+# goto new terminal to invoke s1, s2,s3
+$ sudo simple_switch --thrift-port 9090 --device-id 0 -i 1@s1-eth1 -i 2@s1-eth2 -i 3@s1-eth3 spreadsketch.json
+$ sudo simple_switch --thrift-port 9091 --device-id 1 -i 1@s2-eth1 -i 2@s2-eth2 spreadsketch.json
+$ sudo simple_switch --thrift-port 9092 --device-id 2 -i 1@s3-eth1 -i 2@s3-eth2 spreadsketch.json
+
+#<method1>
+# s1
+$ sudo simple_switch --thrift-port 9090 --device-id 0 -i 1@s1-eth1 -i 2@s1-eth2 -i 3@s1-eth3 spreadsketch_s1.json
+
+# s2
+$ sudo simple_switch --thrift-port 9091 --device-id 1 -i 1@s2-eth1 -i 2@s2-eth2 spreadsketch_s2.json
+
+# s3
+$ sudo simple_switch --thrift-port 9092 --device-id 2 -i 1@s3-eth1 -i 2@s3-eth2 spreadsketch_s3.json
+
+
+# populate table rules
+$ sudo ./populate_tables.py --thrift-port 9090 --pre SimplePre
+$ sudo ./populate_tables.py --thrift-port 9091 --pre SimplePre
+$ sudo ./populate_tables.py --thrift-port 9092 --pre SimplePre
+
+# monitor host
+# 1. invoke xterm
+$ mininet > xterm h1
+$ mininet > xterm h2
+$ mininet > xterm h3
+# 2. listen
+$ mininet > tcpdump -i h2-eth0 -n -vv
+$ mininet > tcpdump -i h3-eth0 -n -vv
+
+# send pkt from h1 (in xterm h1)
+$ sudo ./send.py your_trace_path
+
+
+**Note : command peak**
+# check switch
+$ ps aux | grep simple_switch
+# kill switch
+sudo killall simple_switch
+
+# kill rootfile
+sudo rm -rf /tmp/bmv2-*
+
+# clear mininet trash
+$ sudo mn -c
+
+# check all switch -include switches in bg
+$ ps -ef | grep simple_switch | grep -v grep
+
+# dump table to txt file
+$ simple_switch_CLI --thrift-port 9090 <<< "register_read <name>" > <name>.txt
+
+# listen up when sending (ex : in xterm h2)
+$ mininet > tcpdump -i h2-eth0 -n -vv
+Note:
+// P4 "action" block does not allow parameterized and control logic be used at the same time
+// spreadsketch.p4 only define tables
+// populate_tables.py is the file for inserting forwarding rule
+
